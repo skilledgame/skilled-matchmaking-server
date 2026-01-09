@@ -1,20 +1,14 @@
 {
   "name": "skilled-matchmaking-server",
   "version": "1.0.0",
-  "description": "Matchmaking server for Skilled",
+  "description": "Matchmaking server for Skilled chess game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": [],
-  "author": "Your Name",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "express": "^4.18.2",
-    "ws": "^8.13.0"
-  },
-  "devDependencies": {
-    "@flydotio/dockerfile": "^0.7.10"
+    "socket.io": "^4.8.3",
+    "cors": "^2.8.5"
   }
 }
