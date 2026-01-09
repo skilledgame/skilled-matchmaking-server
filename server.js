@@ -1,37 +1,64 @@
-const http = require('http');
-const WebSocket = require('ws');
+const express = require("express");
+const http = require("http");
+const cors = require("cors");
+const { Server } = require("socket.io");
 
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
+const app = express();
+app.use(cors());
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Allow all origins for testing; restrict in production
+    methods: ["GET", "POST"]
+  }
+});
+
+const PORT = process.env.PORT || 3001;
 
 let waitingPlayer = null;
 
-wss.on('connection', (ws) => {
-  console.log('Player connected');
+io.on("connection", (socket) => {
+  console.log("New player connected:", socket.id);
 
-  ws.on('message', (message) => {
-    console.log('Received:', message);
+  socket.on("find_match", () => {
+    console.log(`Player ${socket.id} is looking for a match...`);
+    if (waitingPlayer === null) {
+      waitingPlayer = socket;
+      socket.emit("waiting", "Waiting for an opponent...");
+    } else {
+      // Pair them
+      const player1 = waitingPlayer;
+      const player2 = socket;
+      waitingPlayer = null;
 
-    if (message === 'find_match') {
-      if (waitingPlayer === null) {
-        waitingPlayer = ws;
-        ws.send('waiting_for_opponent');
-      } else if (waitingPlayer !== ws) {
-        waitingPlayer.send('match_found');
-        ws.send('match_found');
-        waitingPlayer = null;
-      }
+      const roomID = player1.id + "#" + player2.id;
+      player1.join(roomID);
+      player2.join(roomID);
+
+      // Notify both players they've been matched
+      player1.emit("match_found", { roomID, opponentID: player2.id });
+      player2.emit("match_found", { roomID, opponentID: player1.id });
+
+      console.log(`Match created: ${roomID} between ${player1.id} and ${player2.id}`);
     }
   });
 
-  ws.on('close', () => {
-    if (waitingPlayer === ws) {
+  socket.on("make_move", (data) => {
+    // data should contain { roomID, move }
+    const { roomID, move } = data;
+    socket.to(roomID).emit("opponent_move", move);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Player disconnected:", socket.id);
+    if (waitingPlayer && waitingPlayer.id === socket.id) {
       waitingPlayer = null;
     }
   });
 });
 
-const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Matchmaking server listening on port ${PORT}`);
+  console.log(`Skilled matchmaking server running on port ${PORT}`);
 });
