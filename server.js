@@ -1,25 +1,13 @@
-const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 
-const app = express();
-const server = http.createServer(app);
+const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
-const PORT = process.env.PORT || 3001;
-
-console.log("Starting Skilled matchmaking server...");
-
-// Simple health check endpoint
-app.get('/', (req, res) => {
-  res.send('Skilled Matchmaking Server is running');
-});
-
-// Basic matchmaking queue
 let waitingPlayer = null;
 
 wss.on('connection', (ws) => {
-  console.log('New player connected');
+  console.log('Player connected');
 
   ws.on('message', (message) => {
     console.log('Received:', message);
@@ -28,8 +16,7 @@ wss.on('connection', (ws) => {
       if (waitingPlayer === null) {
         waitingPlayer = ws;
         ws.send('waiting_for_opponent');
-      } else {
-        // Match found
+      } else if (waitingPlayer !== ws) {
         waitingPlayer.send('match_found');
         ws.send('match_found');
         waitingPlayer = null;
@@ -38,13 +25,13 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    console.log('Player disconnected');
     if (waitingPlayer === ws) {
       waitingPlayer = null;
     }
   });
 });
 
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Matchmaking server running on port ${PORT}`);
+  console.log(`Matchmaking server listening on port ${PORT}`);
 });
