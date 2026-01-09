@@ -1,55 +1,49 @@
-const express = require("express");
-const http = require("http");
-const WebSocket = require("ws");
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-let queue = [];
+const PORT = process.env.PORT || 3001;
 
-wss.on("connection", (ws) => {
-  console.log("Player connected");
+console.log("Starting Skilled matchmaking server...");
 
-  ws.on("message", (message) => {
-    let data;
-    try {
-      data = JSON.parse(message);
-    } catch (e) {
-      console.error("Invalid JSON:", message);
-      return;
-    }
+// Simple health check endpoint
+app.get('/', (req, res) => {
+  res.send('Skilled Matchmaking Server is running');
+});
 
-    if (data.type === "JOIN_QUEUE") {
-      if (!queue.includes(ws)) {
-        queue.push(ws);
-        console.log("Player joined queue, queue length:", queue.length);
+// Basic matchmaking queue
+let waitingPlayer = null;
 
-        if (queue.length >= 2) {
-          const player1 = queue.shift();
-          const player2 = queue.shift();
+wss.on('connection', (ws) => {
+  console.log('New player connected');
 
-          const matchId = `${player1._socket.remoteAddress}_${player2._socket.remoteAddress}_${Date.now()}`;
+  ws.on('message', (message) => {
+    console.log('Received:', message);
 
-          player1.send(JSON.stringify({ type: "MATCH_FOUND", matchId, role: "white" }));
-          player2.send(JSON.stringify({ type: "MATCH_FOUND", matchId, role: "black" }));
-
-          console.log("Match created:", matchId);
-        } else {
-          ws.send(JSON.stringify({ type: "SEARCHING" }));
-        }
+    if (message === 'find_match') {
+      if (waitingPlayer === null) {
+        waitingPlayer = ws;
+        ws.send('waiting_for_opponent');
+      } else {
+        // Match found
+        waitingPlayer.send('match_found');
+        ws.send('match_found');
+        waitingPlayer = null;
       }
     }
   });
 
-  ws.on("close", () => {
-    queue = queue.filter((p) => p !== ws);
-    console.log("Player disconnected, queue length:", queue.length);
+  ws.on('close', () => {
+    console.log('Player disconnected');
+    if (waitingPlayer === ws) {
+      waitingPlayer = null;
+    }
   });
 });
-
-// Use dynamic port for hosting platforms like Railway
-const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
   console.log(`Matchmaking server running on port ${PORT}`);
